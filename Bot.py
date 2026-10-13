@@ -1,12 +1,7 @@
 
 import os
 import logging
-
-from telegram import (
-    Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-)
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -17,161 +12,162 @@ from telegram.ext import (
 )
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-MENU = InlineKeyboardMarkup([
-    [
-        InlineKeyboardButton("🏠 ثبت ملک", callback_data="listing"),
-        InlineKeyboardButton("🔎 ثبت درخواست", callback_data="request"),
-    ],
-    [
-        InlineKeyboardButton("🔄 سایر معاملات", callback_data="other"),
-        InlineKeyboardButton("🌍 شهرهای دیگر", callback_data="cities"),
-    ],
-    [
-        InlineKeyboardButton("📋 جستجوی آگهی", callback_data="search"),
-    ],
-    [
-        InlineKeyboardButton("👤 درباره من", callback_data="about"),
-        InlineKeyboardButton("📞 ارتباط با من", callback_data="contact"),
-    ],
-])
+MENU = [
+    [("🏠 ثبت ملک برای فروش یا اجاره", "property")],
+    [("🔎 درخواست خرید یا اجاره ملک", "request")],
+    [("🤝 سایر معاملات و تهاتر", "other")],
+    [("🌍 ملک در شهرها و کشورهای دیگر", "cities")],
+    [("📋 جستجوی ملک", "search")],
+    [("ℹ️ درباره ما", "about"), ("☎️ تماس", "contact")],
+]
 
-BACK = InlineKeyboardMarkup([
-    [InlineKeyboardButton("⬅️ منوی اصلی", callback_data="home")]
-])
-
-OPTIONS = {
-    "listing": (
-        "🏠 ثبت ملک\n\nنوع معامله را انتخاب کن:",
-        [
-            [InlineKeyboardButton("فروش", callback_data="sale")],
-            [InlineKeyboardButton("اجاره", callback_data="rent")],
-            [InlineKeyboardButton("رهن و اجاره", callback_data="deposit_rent")],
-            [InlineKeyboardButton("⬅️ بازگشت", callback_data="home")],
-        ],
+MESSAGES = {
+    "property": (
+        "🏠 ثبت ملک\n\n"
+        "لطفاً اطلاعات ملک را در یک پیام بفرست:\n"
+        "نوع معامله، شهر و محله، متراژ، قیمت یا مبلغ رهن و اجاره، "
+        "تعداد اتاق و شماره تماس.\n\n"
+        "هر اطلاعاتی را که فعلاً داری بنویس."
     ),
     "request": (
-        "🔎 ثبت درخواست\n\nنوع درخواستت را انتخاب کن:",
-        [
-            [InlineKeyboardButton("خرید", callback_data="buy")],
-            [InlineKeyboardButton("اجاره", callback_data="need_rent")],
-            [InlineKeyboardButton("رهن و اجاره", callback_data="need_deposit_rent")],
-            [InlineKeyboardButton("⬅️ بازگشت", callback_data="home")],
-        ],
+        "🔎 درخواست ملک\n\n"
+        "دنبال چه ملکی هستی؟ شهر، محله، بودجه، متراژ و نوع معامله "
+        "(خرید، رهن یا اجاره) را بنویس."
     ),
     "other": (
-        "🔄 سایر معاملات\n\nیک گزینه انتخاب کن:",
-        [
-            [InlineKeyboardButton("تهاتر", callback_data="barter")],
-            [InlineKeyboardButton("باغ، ویلا و زمین", callback_data="land")],
-            [InlineKeyboardButton("تهاتر مصالح", callback_data="materials")],
-            [InlineKeyboardButton("سایر موارد", callback_data="other_request")],
-            [InlineKeyboardButton("⬅️ بازگشت", callback_data="home")],
-        ],
+        "🤝 سایر معاملات\n\n"
+        "برای تهاتر، زمین، باغ، ویلا، مصالح ساختمانی یا خدمات ساختمان، "
+        "توضیحات درخواستت را بنویس."
     ),
     "cities": (
-        "🌍 امور ملکی شهرها و کشورهای دیگر\n\n"
-        "در نسخه بعدی، ثبت درخواست در شهر، استان یا کشور دلخواه را تکمیل می‌کنیم.",
-        None,
+        "🌍 درخواست در شهرها و کشورهای دیگر\n\n"
+        "نام شهر یا کشور، نوع ملک و بودجه‌ات را بنویس."
     ),
     "search": (
-        "📋 جستجوی آگهی\n\n"
-        "به‌زودی این بخش به آگهی‌های ثبت‌شده متصل می‌شود.",
-        None,
+        "📋 جستجوی ملک\n\n"
+        "برای راهنمایی در جستجو، شهر، محله، نوع معامله و بودجه‌ات را بنویس."
     ),
     "about": (
-        "👤 درباره مشاور املاک\n\n"
-        "نام برند: R-Estate\n"
-        "نام و شماره تماس و آدرس دفتر پس از تکمیل اطلاعات اضافه می‌شود.",
-        None,
+        "ℹ️ درباره R-Estate\n\n"
+        "خدمات معرفی و پیگیری درخواست‌های ملکی، خرید، فروش، رهن، اجاره "
+        "و سایر معاملات ملکی.\n\n"
+        "اطلاعات تماس و مشخصات مجموعه باید بعداً تکمیل شود."
     ),
     "contact": (
-        "📞 ارتباط با مشاور\n\n"
-        "در مرحله بعد لینک تماس، واتس‌اپ و شبکه‌های اجتماعی را اضافه می‌کنیم.",
-        None,
+        "☎️ ارتباط با R-Estate\n\n"
+        "برای ارتباط، درخواستت را همین‌جا بنویس. "
+        "شماره تماس و راه‌های ارتباطی مجموعه بعداً اضافه می‌شود."
     ),
-}
-
-LABELS = {
-    "sale": "ثبت ملک برای فروش",
-    "rent": "ثبت ملک برای اجاره",
-    "deposit_rent": "ثبت ملک برای رهن و اجاره",
-    "buy": "درخواست خرید",
-    "need_rent": "درخواست اجاره",
-    "need_deposit_rent": "درخواست رهن و اجاره",
-    "barter": "تهاتر",
-    "land": "باغ، ویلا یا زمین",
-    "materials": "تهاتر مصالح ساختمانی",
-    "other_request": "سایر موارد",
 }
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data.clear()
-    await update.effective_message.reply_text(
-        "سلام و خوش آمدی! 👋\n\n"
-        "به سامانه املاک R-Estate خوش آمدی.\n"
-        "از منوی زیر گزینه موردنظرت را انتخاب کن:",
-        reply_markup=MENU,
+    context.user_data.pop("waiting_for", None)
+    keyboard = [
+        [InlineKeyboardButton(label, callback_data=key)
+         for label, key in row]
+        for row in MENU
+    ]
+    await update.message.reply_text(
+        "سلام! به ربات املاک R-Estate خوش آمدی 🏡\n\n"
+        "از منوی زیر یکی از گزینه‌ها را انتخاب کن.",
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
 
-async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def menu_handler(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+):
     query = update.callback_query
     await query.answer()
+
     key = query.data
+    if key not in MESSAGES:
+        return
 
-    if key == "home":
-        context.user_data.clear()
-        await query.edit_message_text(
-            "🏡 منوی اصلی R-Estate\n\nیک گزینه انتخاب کن:",
-            reply_markup=MENU,
+    if key in ("property", "request", "other", "cities", "search"):
+        context.user_data["waiting_for"] = key
+    else:
+        context.user_data.pop("waiting_for", None)
+
+    keyboard = [[InlineKeyboardButton("🏠 منوی اصلی", callback_data="home")]]
+    await query.message.reply_text(
+        MESSAGES[key],
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
+
+
+async def home_handler(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+):
+    query = update.callback_query
+    await query.answer()
+    context.user_data.pop("waiting_for", None)
+
+    keyboard = [
+        [InlineKeyboardButton(label, callback_data=key)
+         for label, key in row]
+        for row in MENU
+    ]
+    await query.message.reply_text(
+        "منوی اصلی R-Estate:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
+
+
+async def receive_text(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+):
+    waiting_for = context.user_data.get("waiting_for")
+
+    if not waiting_for:
+        await update.message.reply_text(
+            "برای شروع یا دیدن گزینه‌ها، دستور /start را بفرست."
         )
         return
 
-    if key in LABELS:
-        context.user_data["form"] = key
-        await query.edit_message_text(
-            f"✅ {LABELS[key]}\n\n"
-            "لطفاً شهر، بودجه یا قیمت، متراژ و توضیحات موردنظرت "
-            "را در یک پیام بنویس.\n\n"
-            "این نسخه اولیه است؛ ذخیره‌سازی و ارسال به مدیر را "
-            "در مرحله بعد اضافه می‌کنیم.",
-            reply_markup=BACK,
-        )
-        return
+    logger.info(
+        "Request received: category=%s user_id=%s",
+        waiting_for,
+        update.effective_user.id,
+    )
 
-    if key in OPTIONS:
-        message, rows = OPTIONS[key]
-        keyboard = InlineKeyboardMarkup(rows) if rows else BACK
-        await query.edit_message_text(message, reply_markup=keyboard)
-
-
-async def receive_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if "form" not in context.user_data:
-        await update.effective_message.reply_text(
-            "برای شروع از منوی اصلی یک گزینه انتخاب کن.",
-            reply_markup=MENU,
-        )
-        return
-
-    await update.effective_message.reply_text(
-        "پیامت دریافت شد. در نسخه بعدی، ثبت اطلاعات و ارسال آن "
-        "برای مدیر را فعال می‌کنیم.",
-        reply_markup=BACK,
+    context.user_data.pop("waiting_for", None)
+    await update.message.reply_text(
+        "✅ اطلاعاتت در همین گفت‌وگو دریافت شد.\n\n"
+        "توجه: در نسخه فعلی اطلاعات در پایگاه داده ذخیره نمی‌شود "
+        "و هنوز برای مدیر ارسال نمی‌شود.\n\n"
+        "برای ثبت درخواست دیگری، /start را بفرست."
     )
 
 
 def main():
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    base_url = os.environ.get("RENDER_EXTERNAL_URL")
+
     if not token:
-        raise RuntimeError("TELEGRAM_BOT_TOKEN تنظیم نشده است.")
+        raise RuntimeError("TELEGRAM_BOT_TOKEN is not set")
+
+    if not base_url:
+        raise RuntimeError("RENDER_EXTERNAL_URL is not set")
 
     app = Application.builder().token(token).build()
+
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(buttons))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, receive_text))
-    app.run_polling()
+    app.add_handler(CallbackQueryHandler(home_handler, pattern="^home$"))
+    app.add_handler(CallbackQueryHandler(menu_handler))
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, receive_text)
+    )
+
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.environ.get("PORT", "10000")),
+        url_path="telegram-webhook",
+        webhook_url=f"{base_url.rstrip('/')}/telegram-webhook",
+    )
 
 
 if __name__ == "__main__":
